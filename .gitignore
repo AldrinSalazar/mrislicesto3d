@@ -1,8 +1,8 @@
 /intermediary_results
 .DS_Store
-mrislicesto3d
+./mrislicesto3d
 mrislicesto3d_mac_arm64
-mrislicesto3d_linux_amd64
-mrislicesto3d_windows_amd64.exe
+./mrislicesto3d_linux_amd64
+./mrislicesto3d_windows_amd64.exe
 /input_slices
 output.stl
