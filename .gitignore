@@ -8,3 +8,4 @@ mrislicesto3d_mac_arm64
 output.stl
 /edge_threshold_test
 main.exe
+./shearlet_filter_scale_*.png
