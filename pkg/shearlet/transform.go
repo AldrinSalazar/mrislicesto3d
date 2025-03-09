@@ -2,12 +2,8 @@ package shearlet
 
 import (
 	"fmt"
-	"image"
-	"image/color"
-	"image/png"
 	"math"
 	"math/cmplx"
-	"os"
 )
 
 // Transform implements the discrete shearlet transform as described in the paper
@@ -64,9 +60,6 @@ func (t *Transform) initializeGenerators() {
 
 	for j := 0; j < t.scales; j++ {
 		t.psi[j] = t.createShearletGenerator(size, j)
-
-		// // Save the filter as an image for debugging
-		// t.saveFilterAsImage(t.psi[j], size, fmt.Sprintf("shearlet_filter_scale_%d.png", j))
 	}
 }
 
@@ -137,39 +130,6 @@ func (t *Transform) mexicanHat(radius float64) float64 {
 	val := (1 - r2/(2*sigma*sigma)) * math.Exp(-r2/(2*sigma*sigma))
 
 	return norm * val
-}
-
-// saveFilterAsImage saves a shearlet filter as a grayscale PNG image for visualization
-func (t *Transform) saveFilterAsImage(filter []complex128, size int, filename string) error {
-	img := image.NewGray(image.Rect(0, 0, size, size))
-	maxVal := 0.0
-
-	// Find the maximum absolute value for normalization
-	for _, c := range filter {
-		absVal := cmplx.Abs(c)
-		if absVal > maxVal {
-			maxVal = absVal
-		}
-	}
-
-	// Normalize and set pixel values
-	for i := 0; i < size; i++ {
-		for j := 0; j < size; j++ {
-			absVal := cmplx.Abs(filter[i*size+j])
-			grayVal := uint8((absVal / maxVal) * 255) // Normalize to 0-255
-			img.SetGray(j, i, color.Gray{Y: grayVal})
-		}
-	}
-
-	// Create file
-	file, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// Encode to PNG
-	return png.Encode(file, img)
 }
 
 // DetectEdgesWithOrientation applies the shearlet transform to detect edges and their orientations
@@ -274,25 +234,6 @@ func (t *Transform) DetectEdgesWithOrientation(data []float64) EdgeInfo {
 func (t *Transform) DetectEdges(data []float64) []float64 {
 	edgeInfo := t.DetectEdgesWithOrientation(data)
 	return edgeInfo.Edges
-}
-
-// DetectEdgesWithThreshold detects edges using a custom threshold value
-func (t *Transform) DetectEdgesWithThreshold(data []float64, threshold float64) []float64 {
-	n := len(data)
-	edges := make([]float64, n)
-
-	edgeInfo := t.DetectEdgesWithOrientation(data)
-
-	// Apply the custom threshold
-	for i := 0; i < n; i++ {
-		if edgeInfo.Edges[i] > threshold {
-			edges[i] = 1.0 // Edge detected
-		} else {
-			edges[i] = 0.0 // No edge
-		}
-	}
-
-	return edges
 }
 
 // getShearRange returns the range of shear parameters for a given maximum shear
@@ -571,9 +512,7 @@ func median(values []float64) float64 {
 
 // SmoothEdges applies edge-preserving smoothing to the input data
 func (t *Transform) SmoothEdges(data []float64, edges []float64) []float64 {
-	// Removed Edge Smoothing
-	//return t.ApplyEdgePreservedSmoothing(data)
-	return data
+	return t.ApplyEdgePreservedSmoothing(data)
 }
 
 // meyer implements the Meyer auxiliary function used in wavelet construction.

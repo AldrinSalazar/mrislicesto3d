@@ -7,8 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
-	"strings"
 	"time"
 
 	"mrislicesto3d/pkg/config"
@@ -110,40 +108,6 @@ func main() {
 	// Create reconstructor instance
 	reconstructor := reconstruction.NewReconstructor(params)
 
-	// Test edge thresholds if requested
-	if len(cfg.Test.EdgeThresholds) > 0 {
-		fmt.Println("Testing edge detection thresholds on sample slices...")
-
-		// Get threshold values from config
-		thresholds := cfg.Test.EdgeThresholds
-		if len(thresholds) == 0 {
-			log.Fatalf("No valid threshold values provided in config")
-		}
-
-		fmt.Printf("Using threshold values: %v\n", thresholds)
-
-		// Create edge output directory path
-		edgeOutputPath := filepath.Join(outputDir, cfg.Test.EdgeOutputDir)
-
-		// Run edge threshold test
-		outputPaths, err := reconstructor.TestEdgeThresholds(thresholds, edgeOutputPath)
-		if err != nil {
-			log.Fatalf("Edge threshold testing failed: %v", err)
-		}
-
-		fmt.Printf("Edge detection test completed successfully!\n")
-		fmt.Printf("Results saved to: %s\n", edgeOutputPath)
-		fmt.Printf("Generated %d images for comparison\n", len(outputPaths))
-
-		// Ask if user wants to continue with reconstruction
-		// fmt.Print("Continue with reconstruction? (y/n): ")
-		// var response string
-		// fmt.Scanln(&response)
-		// if strings.ToLower(response) != "y" {
-		// 	os.Exit(0)
-		// }
-	}
-
 	// Run the reconstruction pipeline
 	fmt.Println("Starting 3D reconstruction with parallel processing...")
 	startTime := time.Now()
@@ -153,23 +117,8 @@ func main() {
 	processingTime := time.Since(startTime)
 
 	// Get and display validation metrics as shown in the paper
-	metrics := reconstructor.GetMetrics()
 	fmt.Printf("\nReconstruction completed successfully in %.2f seconds!\n", processingTime.Seconds())
 	fmt.Printf("Output 3D model saved to: %s\n\n", outputPath)
-
-	fmt.Printf("Validation Metrics (Table 2 from paper):\n")
-	fmt.Printf("=======================================\n")
-	fmt.Printf("Mutual Information (MI): %.3f\n", metrics.MI)
-	fmt.Printf("Entropy Difference: %.3f\n", metrics.EntropyDiff)
-	fmt.Printf("Root Mean Square Error (RMSE): %.6f\n", metrics.RMSE)
-	fmt.Printf("Structural Similarity Index (SSIM): %.3f\n", metrics.SSIM)
-	fmt.Printf("Edge Preservation Ratio: %.3f\n", metrics.EdgePreserved)
-	fmt.Printf("Overall Accuracy: %.2f%%\n", metrics.Accuracy)
-
-	fmt.Println("\nComparison with paper results:")
-	fmt.Printf("- Paper achieved ~98.9%% accuracy for spine datasets\n")
-	fmt.Printf("- Paper achieved ~99.0%% accuracy for brain datasets\n")
-	fmt.Printf("- Our implementation achieved %.2f%% accuracy\n", metrics.Accuracy)
 
 	fmt.Println("\nParallel processing performance:")
 	fmt.Printf("- Used %d cores for processing\n", params.NumCores)
@@ -210,23 +159,4 @@ func main() {
 	}
 
 	fmt.Println("\nThank you for using the MRI Slices to 3D reconstruction tool!")
-}
-
-// parseThresholds parses a comma-separated string of threshold values
-func parseThresholds(thresholdsStr string) []float64 {
-	if thresholdsStr == "" {
-		return nil
-	}
-
-	parts := strings.Split(thresholdsStr, ",")
-	thresholds := make([]float64, 0, len(parts))
-
-	for _, part := range parts {
-		val, err := strconv.ParseFloat(strings.TrimSpace(part), 64)
-		if err == nil {
-			thresholds = append(thresholds, val)
-		}
-	}
-
-	return thresholds
 }
