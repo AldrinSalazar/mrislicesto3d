@@ -23,6 +23,7 @@ func main() {
 	slicesDir := flag.String("slices-dir", "reconstructed_slices", "Directory to save extracted slices")
 	saveIntermediary := flag.Bool("save-intermediary", true, "Save intermediary results during processing")
 	intermediaryDir := flag.String("intermediary-dir", "intermediary_results", "Directory to save intermediary results")
+	verbose := flag.Bool("verbose", false, "Enable verbose logging output")
 	flag.Parse()
 
 	// Validate inputs
@@ -55,6 +56,7 @@ func main() {
 		SliceGap:               *sliceGap,
 		SaveIntermediaryResults: *saveIntermediary,
 		IntermediaryDir:        intermediaryPath,
+		Verbose:                *verbose,
 	}
 
 	// Create reconstructor instance
