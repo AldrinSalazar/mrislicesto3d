@@ -10,11 +10,11 @@ import (
 // TestNewTransform ensures that a new transform is correctly initialized
 // with default parameters
 func TestNewTransform(t *testing.T) {
-	transform := NewTransform()
+	transform := NewDefaultTransform()
 	
 	// Verify default parameters
-	if transform.scales != 4 {
-		t.Errorf("Expected scales=4, got %d", transform.scales)
+	if transform.scales != 3 {
+		t.Errorf("Expected scales=3, got %d", transform.scales)
 	}
 	
 	if transform.shears != 8 {
@@ -42,7 +42,7 @@ func TestNewTransform(t *testing.T) {
 
 // TestGetShearRange verifies the shear parameter range calculation
 func TestGetShearRange(t *testing.T) {
-	transform := NewTransform()
+	transform := NewDefaultTransform()
 	
 	// Test shear range for maxShear = 1
 	range1 := transform.getShearRange(1)
@@ -75,7 +75,7 @@ func TestGetShearRange(t *testing.T) {
 
 // TestDetectEdges verifies edge detection on a simple test pattern
 func TestDetectEdges(t *testing.T) {
-	transform := NewTransform()
+	transform := NewDefaultTransform()
 	
 	// Create a simple 32x32 test image with a vertical edge
 	// (using 32x32 to match the internal size used by the transform)
@@ -130,7 +130,7 @@ func TestDetectEdges(t *testing.T) {
 // TestDetectEdgesWithOrientation verifies edge detection and orientation
 // on a simple test pattern
 func TestDetectEdgesWithOrientation(t *testing.T) {
-	transform := NewTransform()
+	transform := NewDefaultTransform()
 	
 	// Create a simple 32x32 test image with a vertical edge
 	// (using 32x32 to match the internal size used by the transform)
@@ -195,7 +195,7 @@ func TestDetectEdgesWithOrientation(t *testing.T) {
 
 // TestApplyEdgePreservedSmoothing verifies the edge-preserving smoothing algorithm
 func TestApplyEdgePreservedSmoothing(t *testing.T) {
-	transform := NewTransform()
+	transform := NewDefaultTransform()
 	
 	// Create a test image with a vertical edge and some noise
 	size := 32
@@ -375,7 +375,7 @@ func TestFFT1D(t *testing.T) {
 
 // TestFFT2D verifies the 2D FFT implementation using a simple test case
 func TestFFT2D(t *testing.T) {
-	transform := NewTransform()
+	transform := NewDefaultTransform()
 	
 	// Create a 2x2 test image with impulse at origin
 	testImage := []float64{1, 0, 0, 0}

@@ -97,6 +97,21 @@ type Params struct {
 	// Values range from 0.0 to 1.0, with lower values detecting more edges.
 	// Default is 0.5.
 	EdgeDetectionThreshold float64
+	
+	// ShearletScales is the number of scales for the shearlet transform.
+	// Higher values provide more detailed edge detection but increase computation time.
+	// Default is 3.
+	ShearletScales int
+	
+	// ShearletShears is the number of shears for the shearlet transform.
+	// Higher values provide more directional sensitivity but increase computation time.
+	// Default is 8.
+	ShearletShears int
+	
+	// ShearletConeParam is the cone parameter for the shearlet transform.
+	// Controls the shape of the frequency domain partitioning.
+	// Default is 1.0.
+	ShearletConeParam float64
 }
 
 // Reconstructor handles the 3D reconstruction process following the methodology
@@ -381,11 +396,26 @@ func extractNumber(filename string) int {
 //   - nil if successful (processing is done in-place on the slice collection)
 func (r *Reconstructor) denoiseSlices() error {
 	if r.params.Verbose {
-		fmt.Println("Applying Shearlet transform for denoising...")
+		fmt.Println("Applying shearlet transform for denoising...")
 	}
 	
-	// Create a shearlet transform instance
-	transform := shearlet.NewTransform()
+	// Create a shearlet transform instance with configurable parameters
+	scales := r.params.ShearletScales
+	shears := r.params.ShearletShears
+	coneParam := r.params.ShearletConeParam
+	
+	// Use default values if not specified
+	if scales <= 0 {
+		scales = 3
+	}
+	if shears <= 0 {
+		shears = 8
+	}
+	if coneParam <= 0 {
+		coneParam = 1.0
+	}
+	
+	transform := shearlet.NewTransform(scales, shears, coneParam)
 	
 	// Process each slice
 	for i, slice := range r.slices {
@@ -627,7 +657,23 @@ func (r *Reconstructor) processSubVolume(slices []image.Image) ([]float64, error
 		fmt.Println("Applying Shearlet transform for edge detection...")
 	}
 	
-	transform := shearlet.NewTransform()
+	// Create a shearlet transform for edge detection with configurable parameters
+	scales := r.params.ShearletScales
+	shears := r.params.ShearletShears
+	coneParam := r.params.ShearletConeParam
+	
+	// Use default values if not specified
+	if scales <= 0 {
+		scales = 3
+	}
+	if shears <= 0 {
+		shears = 8
+	}
+	if coneParam <= 0 {
+		coneParam = 1.0
+	}
+	
+	transform := shearlet.NewTransform(scales, shears, coneParam)
 	
 	// Detect edges in each slice
 	edgeInfo := make([]shearlet.EdgeInfo, len(slices))
@@ -832,8 +878,23 @@ func (r *Reconstructor) mergeAndGenerateSTL(subVolumes [][][]float64) error {
 	// This implements the mean-median logic from Algorithm 2 in the paper
 	fmt.Println("Applying edge-preserving smoothing...")
 	
-	// Create a shearlet transform instance for edge detection
-	transform := shearlet.NewTransform()
+	// Create a shearlet transform for edge detection during merging with configurable parameters
+	scales := r.params.ShearletScales
+	shears := r.params.ShearletShears
+	coneParam := r.params.ShearletConeParam
+	
+	// Use default values if not specified
+	if scales <= 0 {
+		scales = 3
+	}
+	if shears <= 0 {
+		shears = 8
+	}
+	if coneParam <= 0 {
+		coneParam = 1.0
+	}
+	
+	transform := shearlet.NewTransform(scales, shears, coneParam)
 	
 	// Process each slice in the merged volume
 	for z := 0; z < fullDepth; z++ {
@@ -1070,7 +1131,7 @@ func (r *Reconstructor) calculateValidationMetrics(subVolumes [][][]float64) {
 		r.metrics.EntropyDiff = totalEntropy / float64(count)
 		
 		// Calculate edge preservation ratio
-		r.metrics.EdgePreserved = calculateEdgePreservation(r.slices, subVolumes)
+		r.metrics.EdgePreserved = r.calculateEdgePreservation(r.slices, subVolumes)
 		
 		// Handle potential NaN or infinity values
 		if math.IsNaN(r.metrics.MI) || math.IsInf(r.metrics.MI, 0) {
@@ -1303,13 +1364,31 @@ func findMinMax(data []float64) (min, max float64) {
 }
 
 // calculateEdgePreservation computes the edge preservation ratio
-func calculateEdgePreservation(originalSlices []image.Image, subVolumes [][][]float64) float64 {
+func (r *Reconstructor) calculateEdgePreservation(originalSlices []image.Image, subVolumes [][][]float64) float64 {
 	// Handle empty inputs
 	if len(originalSlices) == 0 || len(subVolumes) == 0 {
 		return 1.0 // Default to 1 (perfect preservation) if no data to compare
 	}
 
-	transformer := shearlet.NewTransform()
+	// Create a shearlet transform for edge detection with configurable parameters
+	scales := r.params.ShearletScales
+	shears := r.params.ShearletShears
+	coneParam := r.params.ShearletConeParam
+	
+	// Use default values if not specified
+	if scales <= 0 {
+		scales = 3
+	}
+	if shears <= 0 {
+		shears = 8
+	}
+	if coneParam <= 0 {
+		coneParam = 1.0
+	}
+	
+	transformer := shearlet.NewTransform(scales, shears, coneParam)
+	
+	// Convert original slices to float array
 	original := imagesToFloat(originalSlices)
 	
 	// Flatten reconstructed volumes for comparison
@@ -1407,8 +1486,23 @@ func (r *Reconstructor) TestEdgeThresholds(thresholds []float64, outputDir strin
 	// Only use the first slice
 	idx := 0
 	
-	// Create Shearlet transform instance
-	transformer := shearlet.NewTransform()
+	// Create a shearlet transform for edge detection with configurable parameters
+	scales := r.params.ShearletScales
+	shears := r.params.ShearletShears
+	coneParam := r.params.ShearletConeParam
+	
+	// Use default values if not specified
+	if scales <= 0 {
+		scales = 3
+	}
+	if shears <= 0 {
+		shears = 8
+	}
+	if coneParam <= 0 {
+		coneParam = 1.0
+	}
+	
+	transformer := shearlet.NewTransform(scales, shears, coneParam)
 	
 	// Process the first slice with different thresholds
 	var outputPaths []string

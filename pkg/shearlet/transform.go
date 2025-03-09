@@ -28,14 +28,31 @@ type EdgeInfo struct {
 }
 
 // NewTransform creates a new shearlet transform instance
-func NewTransform() *Transform {
+// with configurable parameters
+func NewTransform(scales, shears int, coneParam float64) *Transform {
+	// Use default values if invalid parameters are provided
+	if scales <= 0 {
+		scales = 3
+	}
+	if shears <= 0 {
+		shears = 8
+	}
+	if coneParam <= 0 {
+		coneParam = 1.0
+	}
+
 	t := &Transform{
-		scales:    3, // Reduced number of scales for initial testing
-		shears:    8,
-		coneParam: 1.0,
+		scales:    scales,
+		shears:    shears,
+		coneParam: coneParam,
 	}
 	t.initializeGenerators()
 	return t
+}
+
+// NewDefaultTransform creates a new shearlet transform instance with default parameters
+func NewDefaultTransform() *Transform {
+	return NewTransform(3, 8, 1.0)
 }
 
 // initializeGenerators creates shearlet generators for each scale
@@ -48,8 +65,8 @@ func (t *Transform) initializeGenerators() {
 	for j := 0; j < t.scales; j++ {
 		t.psi[j] = t.createShearletGenerator(size, j)
 
-		// Save the filter as an image for debugging
-		t.saveFilterAsImage(t.psi[j], size, fmt.Sprintf("shearlet_filter_scale_%d.png", j))
+		// // Save the filter as an image for debugging
+		// t.saveFilterAsImage(t.psi[j], size, fmt.Sprintf("shearlet_filter_scale_%d.png", j))
 	}
 }
 

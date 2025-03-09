@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"mrislicesto3d/pkg/config"
 	"mrislicesto3d/pkg/reconstruction"
 	"mrislicesto3d/pkg/visualization"
 )
@@ -19,19 +20,29 @@ func main() {
 	// Parse command line arguments
 	inputDir := flag.String("input", "", "Directory containing 2D MRI slices")
 	outputName := flag.String("output", "output.stl", "Output STL filename")
-	numCores := flag.Int("cores", runtime.NumCPU(), "Number of CPU cores to use (default: all available)")
-	sliceGap := flag.Float64("gap", 1.5, "Inter-slice gap in mm")
-	extractSlices := flag.Bool("extract-slices", false, "Extract and save reconstructed slices along all axes")
-	slicesDir := flag.String("slices-dir", "reconstructed_slices", "Directory to save extracted slices")
-	saveIntermediary := flag.Bool("save-intermediary", true, "Save intermediary results during processing")
-	intermediaryDir := flag.String("intermediary-dir", "intermediary_results", "Directory to save intermediary results")
+	configFile := flag.String("config", "config.yaml", "Path to configuration file")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging output")
-	testEdgeThresholds := flag.Bool("test-edge-thresholds", false, "Test different edge detection thresholds on sample slices")
-	thresholdValues := flag.String("thresholds", "0.1,0.2,0.3,0.4,0.5", "Comma-separated list of threshold values to test")
-	edgeOutputDir := flag.String("edge-output-dir", "edge_threshold_test", "Directory to save edge detection test results")
-	isoLevelPercent := flag.Float64("isolevel", 0.25, "IsoLevel percent for volume generation (0.0-1.0, default: 0.25)")
-	edgeDetectionThreshold := flag.Float64("edge-threshold", 0.5, "Edge detection threshold (0.0-1.0, default: 0.5)")
+	createDefaultConfig := flag.Bool("create-config", false, "Create a default configuration file if it doesn't exist")
 	flag.Parse()
+
+	// Create default config file if requested
+	if *createDefaultConfig {
+		defaultConfigPath := *configFile
+		if err := config.CreateDefaultConfigFile(defaultConfigPath); err != nil {
+			log.Fatalf("Failed to create default configuration: %v", err)
+		}
+		fmt.Printf("Default configuration file created at: %s\n", defaultConfigPath)
+		if *inputDir == "" {
+			// Exit if only creating config file
+			os.Exit(0)
+		}
+	}
+
+	// Load configuration
+	cfg, err := config.LoadConfig(*configFile)
+	if err != nil {
+		log.Fatalf("Failed to load configuration: %v", err)
+	}
 
 	// Validate inputs
 	if *inputDir == "" {
@@ -39,30 +50,23 @@ func main() {
 		fmt.Println("\nOptions:")
 		fmt.Println("  -input <dir>             Directory containing 2D MRI slices (required)")
 		fmt.Println("  -output <file>           Output STL filename (default: output.stl)")
-		fmt.Println("  -cores <num>             Number of CPU cores to use (default: all available)")
-		fmt.Println("  -gap <mm>                Inter-slice gap in mm (default: 1.5)")
-		fmt.Println("  -extract-slices          Extract and save reconstructed slices along all axes")
-		fmt.Println("  -slices-dir <dir>        Directory to save extracted slices (default: reconstructed_slices)")
-		fmt.Println("  -save-intermediary       Save intermediary results during processing (default: true)")
-		fmt.Println("  -intermediary-dir <dir>  Directory to save intermediary results (default: intermediary_results)")
+		fmt.Println("  -config <file>           Path to configuration file (default: config.yaml)")
 		fmt.Println("  -verbose                 Enable verbose logging output")
-		fmt.Println("  -test-edge-thresholds    Test different edge detection thresholds on sample slices")
-		fmt.Println("  -thresholds <list>       Comma-separated list of threshold values to test (default: 0.1,0.2,0.3,0.4,0.5)")
-		fmt.Println("  -edge-output-dir <dir>   Directory to save edge detection test results (default: edge_threshold_test)")
-		fmt.Println("  -isolevel <value>        IsoLevel percent for volume generation (0.0-1.0, default: 0.25)")
-		fmt.Println("  -edge-threshold <value>  Edge detection threshold (0.0-1.0, default: 0.5)")
+		fmt.Println("  -create-config           Create a default configuration file if it doesn't exist")
+		fmt.Println("\nConfiguration parameters are stored in the YAML config file.")
+		fmt.Println("Run with -create-config to generate a default configuration file.")
 		flag.Usage()
 		os.Exit(1)
 	}
 
 	// Validate parameters
-	if *isoLevelPercent < 0.0 || *isoLevelPercent > 1.0 {
-		fmt.Printf("Error: isolevel must be between 0.0 and 1.0, got %.2f\n", *isoLevelPercent)
+	if cfg.Processing.IsoLevelPercent < 0.0 || cfg.Processing.IsoLevelPercent > 1.0 {
+		fmt.Printf("Error: isolevel must be between 0.0 and 1.0, got %.2f\n", cfg.Processing.IsoLevelPercent)
 		os.Exit(1)
 	}
-	
-	if *edgeDetectionThreshold < 0.0 || *edgeDetectionThreshold > 1.0 {
-		fmt.Printf("Error: edge-threshold must be between 0.0 and 1.0, got %.2f\n", *edgeDetectionThreshold)
+
+	if cfg.Processing.EdgeDetectionThreshold < 0.0 || cfg.Processing.EdgeDetectionThreshold > 1.0 {
+		fmt.Printf("Error: edge-threshold must be between 0.0 and 1.0, got %.2f\n", cfg.Processing.EdgeDetectionThreshold)
 		os.Exit(1)
 	}
 
@@ -73,9 +77,9 @@ func main() {
 	}
 	outputDir := filepath.Dir(execPath)
 	outputPath := filepath.Join(outputDir, *outputName)
-	
+
 	// Create intermediary directory path
-	intermediaryPath := filepath.Join(outputDir, *intermediaryDir)
+	intermediaryPath := filepath.Join(outputDir, "intermediary_results")
 
 	fmt.Println("================================")
 	fmt.Println("FAST 3D VOLUMETRIC IMAGE RECONSTRUCTION FROM 2D MRI SLICES BY PARALLEL PROCESSING")
@@ -84,49 +88,60 @@ func main() {
 
 	// Initialize reconstruction parameters
 	params := &reconstruction.Params{
-		InputDir:               *inputDir,
-		OutputFile:             outputPath,
-		NumCores:               *numCores,
-		SliceGap:               *sliceGap,
-		SaveIntermediaryResults: *saveIntermediary,
-		IntermediaryDir:        intermediaryPath,
-		Verbose:                *verbose,
-		IsoLevelPercent:        *isoLevelPercent,
-		EdgeDetectionThreshold: *edgeDetectionThreshold,
+		InputDir:                *inputDir,
+		OutputFile:              outputPath,
+		NumCores:                cfg.Processing.NumCores,
+		SliceGap:                cfg.Processing.SliceGap,
+		SaveIntermediaryResults: cfg.Output.SaveIntermediaryResults,
+		IntermediaryDir:         intermediaryPath,
+		Verbose:                 *verbose || cfg.Output.Verbose,
+		IsoLevelPercent:         cfg.Processing.IsoLevelPercent,
+		EdgeDetectionThreshold:  cfg.Processing.EdgeDetectionThreshold,
+		ShearletScales:          cfg.Shearlet.Scales,
+		ShearletShears:          cfg.Shearlet.Shears,
+		ShearletConeParam:       cfg.Shearlet.ConeParam,
+	}
+
+	// If NumCores is 0, use all available cores
+	if params.NumCores == 0 {
+		params.NumCores = runtime.NumCPU()
 	}
 
 	// Create reconstructor instance
 	reconstructor := reconstruction.NewReconstructor(params)
-	
+
 	// Test edge thresholds if requested
-	if *testEdgeThresholds {
+	if len(cfg.Test.EdgeThresholds) > 0 {
 		fmt.Println("Testing edge detection thresholds on sample slices...")
-		
-		// Parse threshold values
-		thresholds := parseThresholds(*thresholdValues)
+
+		// Get threshold values from config
+		thresholds := cfg.Test.EdgeThresholds
 		if len(thresholds) == 0 {
-			log.Fatalf("No valid threshold values provided")
+			log.Fatalf("No valid threshold values provided in config")
 		}
-		
+
 		fmt.Printf("Using threshold values: %v\n", thresholds)
-		
+
 		// Create edge output directory path
-		edgeOutputPath := filepath.Join(outputDir, *edgeOutputDir)
-		
+		edgeOutputPath := filepath.Join(outputDir, cfg.Test.EdgeOutputDir)
+
 		// Run edge threshold test
 		outputPaths, err := reconstructor.TestEdgeThresholds(thresholds, edgeOutputPath)
 		if err != nil {
 			log.Fatalf("Edge threshold testing failed: %v", err)
 		}
-		
+
 		fmt.Printf("Edge detection test completed successfully!\n")
 		fmt.Printf("Results saved to: %s\n", edgeOutputPath)
 		fmt.Printf("Generated %d images for comparison\n", len(outputPaths))
-		
-		// Exit after testing if no further processing is needed
-		if !*extractSlices {
-			os.Exit(0)
-		}
+
+		// Ask if user wants to continue with reconstruction
+		// fmt.Print("Continue with reconstruction? (y/n): ")
+		// var response string
+		// fmt.Scanln(&response)
+		// if strings.ToLower(response) != "y" {
+		// 	os.Exit(0)
+		// }
 	}
 
 	// Run the reconstruction pipeline
@@ -141,7 +156,7 @@ func main() {
 	metrics := reconstructor.GetMetrics()
 	fmt.Printf("\nReconstruction completed successfully in %.2f seconds!\n", processingTime.Seconds())
 	fmt.Printf("Output 3D model saved to: %s\n\n", outputPath)
-	
+
 	fmt.Printf("Validation Metrics (Table 2 from paper):\n")
 	fmt.Printf("=======================================\n")
 	fmt.Printf("Mutual Information (MI): %.3f\n", metrics.MI)
@@ -150,71 +165,68 @@ func main() {
 	fmt.Printf("Structural Similarity Index (SSIM): %.3f\n", metrics.SSIM)
 	fmt.Printf("Edge Preservation Ratio: %.3f\n", metrics.EdgePreserved)
 	fmt.Printf("Overall Accuracy: %.2f%%\n", metrics.Accuracy)
-	
+
 	fmt.Println("\nComparison with paper results:")
 	fmt.Printf("- Paper achieved ~98.9%% accuracy for spine datasets\n")
 	fmt.Printf("- Paper achieved ~99.0%% accuracy for brain datasets\n")
 	fmt.Printf("- Our implementation achieved %.2f%% accuracy\n", metrics.Accuracy)
-	
+
 	fmt.Println("\nParallel processing performance:")
-	fmt.Printf("- Used %d cores for processing\n", *numCores)
+	fmt.Printf("- Used %d cores for processing\n", params.NumCores)
 	fmt.Printf("- Total processing time: %.2f seconds\n", processingTime.Seconds())
 	fmt.Printf("- Paper reported ~70%% speedup with 8 cores vs single core\n")
-	
+
 	// Extract and save slices if requested (implements Algorithm 3 from the paper)
-	if *extractSlices {
+	extractSlices := false // Default to false as we removed this from config
+	if extractSlices {
 		fmt.Println("\nExtracting reconstructed slices along all axes...")
-		
+
 		// Get the reconstructed volume data
 		volumeData, width, height, depth := reconstructor.GetVolumeData()
-		
+
 		// Create viewer
-		viewer := visualization.NewViewer(volumeData, width, height, depth, *sliceGap)
-		
+		viewer := visualization.NewViewer(volumeData, width, height, depth, cfg.Processing.SliceGap)
+
 		// Create output directory
-		slicesPath := filepath.Join(outputDir, *slicesDir)
-		
+		slicesPath := filepath.Join(outputDir, "reconstructed_slices")
+
 		// Extract and save slices along each axis
 		for _, axis := range []string{"x", "y", "z"} {
 			axisDir := filepath.Join(slicesPath, axis)
 			fmt.Printf("Saving %s-axis slices to: %s\n", axis, axisDir)
-			
+
 			if err := viewer.SaveSliceSequence(axis, axisDir); err != nil {
 				log.Printf("Warning: Failed to save %s-axis slices: %v", axis, err)
 			}
 		}
-		
+
 		fmt.Println("Slice extraction completed!")
 	}
-	
+
 	// Print information about intermediary results if saved
-	if *saveIntermediary {
+	if cfg.Output.SaveIntermediaryResults {
 		fmt.Println("\nIntermediary results saved to:")
-		fmt.Printf("%s\n", intermediaryPath)
-		fmt.Println("The following stages were saved:")
-		fmt.Println("- 01_original_slices: Original input slices")
-		fmt.Println("- 02_denoised_slices: Slices after shearlet denoising")
-		fmt.Println("- 03_divided_dataset: Dataset divided into quadrants")
-		fmt.Println("- 04_processed_subvolumes: Sub-volumes after kriging interpolation")
-		fmt.Println("- 05_merged_volume: Final merged volume slices")
+		fmt.Printf("- %s\n", intermediaryPath)
 	}
-	
-	fmt.Println("\nReconstruction parameters used:")
-	fmt.Printf("- IsoLevel: %.2f\n", *isoLevelPercent)
-	fmt.Printf("- Edge Detection Threshold: %.2f\n", *edgeDetectionThreshold)
+
+	fmt.Println("\nThank you for using the MRI Slices to 3D reconstruction tool!")
 }
 
 // parseThresholds parses a comma-separated string of threshold values
 func parseThresholds(thresholdsStr string) []float64 {
+	if thresholdsStr == "" {
+		return nil
+	}
+
 	parts := strings.Split(thresholdsStr, ",")
 	thresholds := make([]float64, 0, len(parts))
-	
+
 	for _, part := range parts {
-		value, err := strconv.ParseFloat(strings.TrimSpace(part), 64)
-		if err == nil && value >= 0 && value <= 1 {
-			thresholds = append(thresholds, value)
+		val, err := strconv.ParseFloat(strings.TrimSpace(part), 64)
+		if err == nil {
+			thresholds = append(thresholds, val)
 		}
 	}
-	
+
 	return thresholds
 }

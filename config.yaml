@@ -1,0 +1,54 @@
+# MRI Slices to 3D Configuration
+# This file contains all configurable parameters for the MRI reconstruction process
+
+# Processing parameters
+processing:
+  # Number of CPU cores to use for parallel processing (default: all available)
+  numCores: 0  # 0 means use all available cores
+  
+  # Inter-slice gap in mm (physical distance between consecutive MRI slices)
+  sliceGap: 4
+  
+  # IsoLevel percent for volume generation (0.0-1.0)
+  # Lower values create more inclusive models
+  isoLevelPercent: 0.25
+  
+  # Edge detection threshold (0.0-1.0)
+  # Lower values detect more edges
+  edgeDetectionThreshold: 0.11
+
+# Shearlet transform parameters
+shearlet:
+  # Number of scales for the shearlet transform
+  scales: 4
+  
+  # Number of shears for the shearlet transform
+  shears: 12
+  
+  # Cone parameter for the shearlet transform
+  coneParam: 0.8
+
+# Output parameters
+output:
+  # Whether to save intermediary results during processing
+  saveIntermediaryResults: true
+  
+  # Directory to save intermediary results
+  intermediaryDir: "intermediary_results"
+  
+  # Whether to extract and save reconstructed slices along all axes
+  extractSlices: false
+  
+  # Directory to save extracted slices
+  slicesDir: "reconstructed_slices"
+
+# Testing parameters
+testing:
+  # Whether to test different edge detection thresholds on sample slices
+  testEdgeThresholds: false
+  
+  # List of threshold values to test
+  thresholdValues: [0.1, 0.2, 0.3, 0.4, 0.5]
+  
+  # Directory to save edge detection test results
+  edgeOutputDir: "edge_threshold_test"
