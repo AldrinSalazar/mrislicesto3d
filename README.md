@@ -70,7 +70,7 @@ go build ./cmd/mrislicesto3d
 ### Basic Command
 
 ```bash
-./mrislicesto3d -input /path/to/slices -output output.stl -gap 3.0 -cores 8
+./mrislicesto3d -input /path/to/slices -output output.stl -gap 3.0 -cores 8 -isolevel 0.25 -edge-threshold 0.5
 ```
 
 ### Parameters
@@ -81,6 +81,8 @@ go build ./cmd/mrislicesto3d
 | `-output` | Output STL filename for the 3D model | `output.stl` |
 | `-gap`    | Inter-slice gap in millimeters | `3.0` |
 | `-cores`  | Number of CPU cores to use | All available |
+| `-isolevel` | IsoLevel percent for volume generation (0.0-1.0) | `0.25` |
+| `-edge-threshold` | Edge detection threshold (0.0-1.0) | `0.5` |
 
 ## Performance Metrics
 

@@ -6,4 +6,5 @@ mrislicesto3d_mac_arm64
 ./mrislicesto3d_windows_amd64.exe
 /input_slices
 output.stl
+/edge_threshold_test
 main.exe

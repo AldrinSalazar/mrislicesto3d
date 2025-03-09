@@ -87,6 +87,16 @@ type Params struct {
 	// Verbose controls the level of logging output.
 	// When enabled, detailed progress and debug information will be displayed.
 	Verbose bool
+
+	// IsoLevelPercent controls the threshold for final volume generation in marching cubes.
+	// Values range from 0.0 to 1.0, with lower values creating more inclusive models.
+	// Default is 0.25 (25% of the range from min to max intensity).
+	IsoLevelPercent float64
+
+	// EdgeDetectionThreshold controls the sensitivity of edge detection.
+	// Values range from 0.0 to 1.0, with lower values detecting more edges.
+	// Default is 0.5.
+	EdgeDetectionThreshold float64
 }
 
 // Reconstructor handles the 3D reconstruction process following the methodology
@@ -679,7 +689,6 @@ func (r *Reconstructor) processSubVolume(slices []image.Image) ([]float64, error
 					// Since we don't have a direct InterpolateEdgePreserved method,
 					// we'll use a weighted average that preserves edges better
 					// This is a simplified version of what the paper describes
-					// Weight the values based on edge strength
 					edgeWeight1 := 0.5
 					edgeWeight2 := 0.5
 					
@@ -848,7 +857,7 @@ func (r *Reconstructor) mergeAndGenerateSTL(subVolumes [][][]float64) error {
 				idx := y*fullWidth + x
 				
 				// Check if this is an edge pixel
-				if edgeInfo.Edges[idx] > 0.5 { // Threshold for edge detection
+				if edgeInfo.Edges[idx] > r.params.EdgeDetectionThreshold { // Use parameter for edge detection threshold
 					// Get edge orientation
 					orientation := edgeInfo.Orientations[idx]
 					
@@ -933,7 +942,7 @@ func (r *Reconstructor) mergeAndGenerateSTL(subVolumes [][][]float64) error {
 	
 	// Calculate a better isoLevel based on the data range
 	// Use 25% of the range from min to max as the threshold
-	adaptiveIsoLevel := minVal + (maxVal-minVal)*0.25
+	adaptiveIsoLevel := minVal + (maxVal-minVal)*r.params.IsoLevelPercent
 	if r.params.Verbose {
 		fmt.Printf("Using adaptive isoLevel: %.3f\n", adaptiveIsoLevel)
 	}
@@ -1375,6 +1384,88 @@ func (r *Reconstructor) GetMetrics() ValidationMetrics {
 	return r.metrics
 }
 
+// TestEdgeThresholds takes a sample of input slices and applies edge detection with different thresholds
+// It returns the paths to the generated output images for comparison
+func (r *Reconstructor) TestEdgeThresholds(thresholds []float64, outputDir string) ([]string, error) {
+	// Ensure we have slices to process
+	if len(r.slices) == 0 {
+		if err := r.loadSlices(); err != nil {
+			return nil, fmt.Errorf("failed to load slices: %v", err)
+		}
+	}
+	
+	// Create output directory if it doesn't exist
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create output directory: %v", err)
+	}
+	
+	// Check if we have at least one slice
+	if len(r.slices) == 0 {
+		return nil, fmt.Errorf("no slices found for testing")
+	}
+	
+	// Only use the first slice
+	idx := 0
+	
+	// Create Shearlet transform instance
+	transformer := shearlet.NewTransform()
+	
+	// Process the first slice with different thresholds
+	var outputPaths []string
+	
+	// Convert image to float array
+	imgData := imageToFloat(r.slices[idx])
+	
+	// Get image dimensions
+	bounds := r.slices[idx].Bounds()
+	width := bounds.Dx()
+	height := bounds.Dy()
+	
+	// Save original image for reference
+	origPath := filepath.Join(outputDir, fmt.Sprintf("slice_%d_original.jpg", idx))
+	if err := saveJPEG(r.slices[idx], origPath); err != nil {
+		return nil, fmt.Errorf("failed to save original image: %v", err)
+	}
+	outputPaths = append(outputPaths, origPath)
+	
+	// If no thresholds were provided, generate thresholds from 0 to 1 in increments of 0.01
+	if len(thresholds) == 0 {
+		thresholds = make([]float64, 101) // 0.00 to 1.00
+		for i := 0; i <= 100; i++ {
+			thresholds[i] = float64(i) / 100.0
+		}
+	}
+	
+	// Process with each threshold
+	for _, threshold := range thresholds {
+		// Detect edges with custom threshold
+		edges := transformer.DetectEdgesWithThreshold(imgData, threshold)
+		
+		// Convert edge map to image
+		edgeImg := floatToImage(edges, width, height)
+		
+		// Save edge image
+		edgePath := filepath.Join(outputDir, fmt.Sprintf("slice_%d_threshold_%.2f.jpg", idx, threshold))
+		if err := saveJPEG(edgeImg, edgePath); err != nil {
+			return nil, fmt.Errorf("failed to save edge image: %v", err)
+		}
+		outputPaths = append(outputPaths, edgePath)
+	}
+	
+	return outputPaths, nil
+}
+
+// saveJPEG saves an image as JPEG
+func saveJPEG(img image.Image, path string) error {
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	
+	return jpeg.Encode(file, img, &jpeg.Options{Quality: 90})
+}
+
 // GetVolumeData returns the reconstructed volume data and its dimensions
 // This method is used to access the volume data for visualization
 func (r *Reconstructor) GetVolumeData() ([]float64, int, int, int) {
@@ -1395,7 +1486,7 @@ func (r *Reconstructor) GetVolumeData() ([]float64, int, int, int) {
 	numCores := r.params.NumCores
 	
 	// Divide the work among available cores
-	slicesPerCore := (numSlices + numCores - 1) / numCores
+	slicesPerCore := (numSlices + numCores - 1) / numCores 
 	
 	for c := 0; c < numCores; c++ {
 		wg.Add(1)
